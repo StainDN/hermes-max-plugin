@@ -1,0 +1,46 @@
+name: max-platform
+label: MAX
+kind: platform
+version: 1.0.0
+description: >
+  MAX Messenger gateway adapter for Hermes Agent.
+  Connects a MAX bot to Hermes via the maxapi library, supporting
+  text messages, media, inline callback buttons, typing indicators
+  and cron delivery.
+author: Hermes Agent community
+
+requires_env:
+  - name: MAX_BOT_TOKEN
+    description: "Bot token from the MAX Bot API (https://dev.max.ru/docs-api/)"
+    prompt: "MAX bot token"
+    password: true
+
+optional_env:
+  - name: MAX_ALLOWED_USERS
+    description: "Comma-separated user IDs allowed to talk to the bot"
+    prompt: "Allowed MAX user IDs (comma-separated)"
+    password: false
+  - name: MAX_ALLOW_ALL_USERS
+    description: "Allow any MAX user to talk to the bot (dev only)"
+    prompt: "Allow all users? (true/false)"
+    password: false
+  - name: MAX_HOME_CHANNEL
+    description: "Default chat/user ID for cron / notification delivery"
+    prompt: "MAX home channel chat/user ID"
+    password: false
+  - name: MAX_HOME_CHANNEL_NAME
+    description: "Human label for the home channel"
+    prompt: "Home channel display name"
+    password: false
+  - name: MAX_POLL_TIMEOUT
+    description: "Long-polling timeout in seconds (default: 30)"
+    prompt: "Polling timeout"
+    password: false
+  - name: MAX_RECONNECT_BACKOFF
+    description: "Comma-separated reconnect delays in seconds (default: 2,5,10,30,60)"
+    prompt: "Reconnect backoff delays"
+    password: false
+  - name: MAX_API_URL
+    description: "Custom MAX API base URL (default: https://platform-api2.max.ru)"
+    prompt: "MAX API URL"
+    password: false
