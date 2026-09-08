@@ -471,6 +471,9 @@ class MaxAdapter(BasePlatformAdapter):
             logger.debug("[%s] Skipping own message %s", self.name, _safe_id(message_id))
             return
 
+        # Mark the message as read so the sender sees the "seen" indicator.
+        await self._notify_seen(chat_id=message.recipient.chat_id)
+
         chat_id = message.recipient.chat_id
         user_id = message.sender.user_id if message.sender else None
 
@@ -594,6 +597,9 @@ class MaxAdapter(BasePlatformAdapter):
         chat_id = message.recipient.chat_id if message else None
         chat_id_str = str(chat_id) if chat_id is not None else str(user_id)
         user_id_str = str(user_id) if user_id is not None else str(chat_id)
+
+        # Mark the message as read so the sender sees the "seen" indicator.
+        await self._notify_seen(chat_id=chat_id)
 
         source = self.build_source(
             chat_id=chat_id_str,
@@ -1099,6 +1105,22 @@ class MaxAdapter(BasePlatformAdapter):
             attachment=attachment,
             reply_to=None,
         )
+
+    async def _notify_seen(self, chat_id: Optional[Any]) -> None:
+        """Send a MARK_SEEN action to acknowledge a received message.
+
+        Without this, the sender never sees the "read" indicator because MAX
+        does not mark messages as read automatically on long-polling delivery.
+        """
+        if not self._bot or chat_id is None:
+            return
+        try:
+            await self._bot.send_action(
+                chat_id=int(chat_id) if str(chat_id).isdigit() else None,
+                action=SenderAction.MARK_SEEN,
+            )
+        except Exception as e:
+            logger.debug("[%s] mark_seen failed: %s", self.name, e)
 
     # ------------------------------------------------------------------
     # Helpers
