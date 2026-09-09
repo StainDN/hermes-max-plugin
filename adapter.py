@@ -471,9 +471,6 @@ class MaxAdapter(BasePlatformAdapter):
             logger.debug("[%s] Skipping own message %s", self.name, _safe_id(message_id))
             return
 
-        # Mark the message as read so the sender sees the "seen" indicator.
-        await self._notify_seen(chat_id=message.recipient.chat_id)
-
         chat_id = message.recipient.chat_id
         user_id = message.sender.user_id if message.sender else None
 
@@ -565,6 +562,7 @@ class MaxAdapter(BasePlatformAdapter):
             _safe_id(chat_id_str),
             text[:80] if text else "(media)",
         )
+        await self._mark_seen(chat_id)
         await self.handle_message(msg_event)
 
     async def _on_message_callback(self, event: MessageCallback) -> None:
@@ -598,9 +596,6 @@ class MaxAdapter(BasePlatformAdapter):
         chat_id_str = str(chat_id) if chat_id is not None else str(user_id)
         user_id_str = str(user_id) if user_id is not None else str(chat_id)
 
-        # Mark the message as read so the sender sees the "seen" indicator.
-        await self._notify_seen(chat_id=chat_id)
-
         source = self.build_source(
             chat_id=chat_id_str,
             chat_name=chat_id_str,
@@ -627,6 +622,7 @@ class MaxAdapter(BasePlatformAdapter):
             payload,
             text,
         )
+        await self._mark_seen(chat_id)
         await self.handle_message(msg_event)
 
     async def _on_bot_started_or_added(self, event: Any) -> None:
@@ -649,6 +645,7 @@ class MaxAdapter(BasePlatformAdapter):
             raw_message=event.model_dump() if hasattr(event, "model_dump") else event,
             message_id=str(uuid.uuid4().hex),
         )
+        await self._mark_seen(chat_id)
         await self.handle_message(msg_event)
 
     @staticmethod
@@ -797,6 +794,24 @@ class MaxAdapter(BasePlatformAdapter):
                 )
 
         return SendResult(success=True, message_id=last_message_id)
+
+    async def _mark_seen(self, chat_id) -> None:
+        """Mark a chat\'s messages as read in MAX («прочитано»).
+
+        MAX does not auto-mark incoming messages read just because the bot
+        fetched them. Sending SenderAction.MARK_SEEN to the chat turns the
+        «прочитано» marker on / clears the unread counter for the user.
+        Fire-and-forget: never blocks the event pipeline.
+        """
+        if not self._bot:
+            return
+        try:
+            await self._bot.send_action(
+                chat_id=int(chat_id) if str(chat_id).isdigit() else None,
+                action=SenderAction.MARK_SEEN,
+            )
+        except Exception as e:
+            logger.debug("[%s] mark_seen failed: %s", self.name, e)
 
     async def send_typing(self, chat_id: str, metadata=None) -> None:
         """Send a single typing indicator to MAX.
@@ -1105,22 +1120,6 @@ class MaxAdapter(BasePlatformAdapter):
             attachment=attachment,
             reply_to=None,
         )
-
-    async def _notify_seen(self, chat_id: Optional[Any]) -> None:
-        """Send a MARK_SEEN action to acknowledge a received message.
-
-        Without this, the sender never sees the "read" indicator because MAX
-        does not mark messages as read automatically on long-polling delivery.
-        """
-        if not self._bot or chat_id is None:
-            return
-        try:
-            await self._bot.send_action(
-                chat_id=int(chat_id) if str(chat_id).isdigit() else None,
-                action=SenderAction.MARK_SEEN,
-            )
-        except Exception as e:
-            logger.debug("[%s] mark_seen failed: %s", self.name, e)
 
     # ------------------------------------------------------------------
     # Helpers
