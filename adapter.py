@@ -235,6 +235,25 @@ def is_connected(config) -> bool:
     return bool(_get_token(config))
 
 
+async def _send_to_target(bot, chat_id: str, **kwargs):
+    """Send one message to a MAX target, resolving DM dialogs correctly.
+
+    MAX's POST /messages resolves a direct dialog by ``user_id``; passing a DM's
+    user id as ``chat_id`` answers 404 ``chat.not.found``. The gateway only knows
+    a single chat id string, so try it as a chat first and fall back to a user
+    dialog. Group chats keep working through the first call.
+    """
+    target = int(chat_id) if str(chat_id).isdigit() else None
+    if target is None:
+        return await bot.send_message(chat_id=None, **kwargs)
+    try:
+        return await bot.send_message(chat_id=target, **kwargs)
+    except Exception as e:  # noqa: BLE001
+        if "chat.not.found" not in str(e):
+            raise
+        return await bot.send_message(user_id=target, **kwargs)
+
+
 class MaxAdapter(BasePlatformAdapter):
     """Hermes platform adapter for MAX Messenger."""
 
@@ -777,10 +796,8 @@ class MaxAdapter(BasePlatformAdapter):
                 link = None
                 if reply_to and i == 0:
                     link = NewMessageLink(type="reply", mid=reply_to)
-                result = await self._bot.send_message(
-                    chat_id=int(chat_id) if chat_id.isdigit() else None,
-                    text=part,
-                    link=link,
+                result = await _send_to_target(
+                    self._bot, chat_id, text=part, link=link
                 )
                 if result and getattr(result, "message_id", None):
                     last_message_id = str(result.message_id)
@@ -1006,8 +1023,9 @@ class MaxAdapter(BasePlatformAdapter):
         if reply_to:
             link = NewMessageLink(type="reply", mid=reply_to)
         try:
-            result = await self._bot.send_message(
-                chat_id=int(chat_id) if chat_id.isdigit() else None,
+            result = await _send_to_target(
+                self._bot,
+                chat_id,
                 text=text or None,
                 attachments=[attachment],
                 link=link,
@@ -1195,8 +1213,9 @@ async def _standalone_send(
                 except Exception as e:
                     logger.warning("[max standalone] Failed to upload %s: %s", path, e)
 
-        result = await bot.send_message(
-            chat_id=int(chat_id) if chat_id.isdigit() else None,
+        result = await _send_to_target(
+            bot,
+            chat_id,
             text=message or None,
             attachments=attachments or None,
         )
